@@ -1,5 +1,6 @@
 <script>
   import { onDestroy, tick } from 'svelte';
+  import doubleTakeAudio from './assets/double-take.mp3';
 
   // State
   let isFlipped = $state(false);
@@ -20,6 +21,13 @@
 
   /** @type {HTMLInputElement | undefined} */
   let pwdInput = $state();
+
+  // Audio state
+  /** @type {HTMLAudioElement | undefined} */
+  let audioElement = $state();
+  let isPlaying = $state(false);
+  let isMusicStarted = $state(false);
+  let isMuted = $state(false);
 
   /** @type {ReturnType<typeof setInterval> | null} */
   let heartInterval = null;
@@ -52,6 +60,37 @@
     if (pwdInput) {
       pwdInput.focus();
     }
+  }
+
+  function playMusic() {
+    if (!audioElement) return;
+    audioElement.volume = 0.65;
+    audioElement.play().then(() => {
+      isPlaying = true;
+      isMusicStarted = true;
+    }).catch((err) => {
+      console.warn('Audio autoplay delayed or blocked:', err);
+      // Still show the music pill so user can click play
+      isMusicStarted = true;
+    });
+  }
+
+  function togglePlay() {
+    if (!audioElement) return;
+    if (isPlaying) {
+      audioElement.pause();
+      isPlaying = false;
+    } else {
+      audioElement.play().then(() => {
+        isPlaying = true;
+      }).catch(console.error);
+    }
+  }
+
+  function toggleMute() {
+    if (!audioElement) return;
+    audioElement.muted = !audioElement.muted;
+    isMuted = audioElement.muted;
   }
 
   function triggerRomanceEffects() {
@@ -114,6 +153,7 @@
       isLightTheme = true;
 
       triggerRomanceEffects();
+      playMusic();
 
       await tick();
       if (msgContainer) {
@@ -287,6 +327,83 @@
     </div>
   </div>
 </main>
+
+<!-- Audio Player (dhruv - double take) -->
+<audio
+  bind:this={audioElement}
+  src={doubleTakeAudio}
+  preload="auto"
+  loop
+  onplay={() => (isPlaying = true)}
+  onpause={() => (isPlaying = false)}
+></audio>
+
+<!-- Floating Music Player Widget -->
+{#if isMusicStarted}
+  <aside
+    class="music-pill"
+    class:light-theme={isLightTheme}
+    aria-label="Background music"
+  >
+    <div class="music-disc-wrapper" title={isPlaying ? 'Now Playing' : 'Paused'}>
+      <div class="music-disc" class:spinning={isPlaying}>
+        <span class="disc-icon">💿</span>
+      </div>
+    </div>
+
+    <div class="music-info">
+      <div class="music-title-row">
+        <span class="music-track-name">double take</span>
+        <span class="music-artist-name">dhruv</span>
+      </div>
+      <div class="equalizer-bars" class:active={isPlaying} aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+
+    <div class="music-controls">
+      <button
+        class="music-btn"
+        onclick={togglePlay}
+        type="button"
+        title={isPlaying ? 'Pause music' : 'Play music'}
+        aria-label={isPlaying ? 'Pause music' : 'Play music'}
+      >
+        {#if isPlaying}
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1.5"></rect>
+            <rect x="14" y="4" width="4" height="16" rx="1.5"></rect>
+          </svg>
+        {:else}
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M8 5v14l11-7z"></path>
+          </svg>
+        {/if}
+      </button>
+
+      <button
+        class="music-btn"
+        onclick={toggleMute}
+        type="button"
+        title={isMuted ? 'Unmute' : 'Mute'}
+        aria-label={isMuted ? 'Unmute' : 'Mute'}
+      >
+        {#if isMuted}
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27l4.73 4.73H4v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"></path>
+          </svg>
+        {:else}
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path>
+          </svg>
+        {/if}
+      </button>
+    </div>
+  </aside>
+{/if}
 
 <style>
   /* Background Decorations Layer */
@@ -642,8 +759,201 @@
     }
   }
 
+  /* Floating Music Player Widget */
+  .music-pill {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    color: #f8fafc;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    animation: slideDownFade 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .music-pill.light-theme {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 12px 35px -8px rgba(244, 114, 182, 0.35),
+                0 0 20px rgba(255, 255, 255, 0.8) inset;
+    color: #1e1b4b;
+  }
+
+  .music-disc-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .music-disc {
+    font-size: 1.3rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.2));
+  }
+
+  .music-disc.spinning {
+    animation: spinDisc 3s linear infinite;
+  }
+
+  @keyframes spinDisc {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .music-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .music-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .music-track-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+
+  .music-artist-name {
+    font-size: 0.74rem;
+    opacity: 0.72;
+    font-weight: 400;
+  }
+
+  /* Equalizer Animation Bars */
+  .equalizer-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 9px;
+  }
+
+  .equalizer-bars span {
+    width: 2.5px;
+    height: 2.5px;
+    background: currentColor;
+    border-radius: 2px;
+    opacity: 0.6;
+    transition: height 0.2s ease;
+  }
+
+  .equalizer-bars.active span:nth-child(1) {
+    animation: barBounce 0.9s ease-in-out infinite alternate;
+  }
+  .equalizer-bars.active span:nth-child(2) {
+    animation: barBounce 0.7s ease-in-out 0.2s infinite alternate;
+  }
+  .equalizer-bars.active span:nth-child(3) {
+    animation: barBounce 1s ease-in-out 0.4s infinite alternate;
+  }
+  .equalizer-bars.active span:nth-child(4) {
+    animation: barBounce 0.8s ease-in-out 0.1s infinite alternate;
+  }
+
+  @keyframes barBounce {
+    0% {
+      height: 2px;
+      opacity: 0.35;
+    }
+    100% {
+      height: 9px;
+      opacity: 0.95;
+    }
+  }
+
+  .music-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 2px;
+  }
+
+  .music-btn {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: inherit;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+  }
+
+  .music-pill.light-theme .music-btn {
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .music-btn:hover {
+    transform: scale(1.08);
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  .music-pill.light-theme .music-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .music-btn:active {
+    transform: scale(0.94);
+  }
+
+  @keyframes slideDownFade {
+    from {
+      opacity: 0;
+      transform: translateY(-16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   /* Mobile responsiveness */
   @media (max-width: 480px) {
+    .music-pill {
+      top: 12px;
+      right: 12px;
+      padding: 6px 12px;
+      gap: 9px;
+    }
+    .music-track-name {
+      font-size: 0.8rem;
+    }
+    .music-artist-name {
+      font-size: 0.68rem;
+    }
+    .music-btn {
+      width: 26px;
+      height: 26px;
+    }
     .scene {
       max-width: 92vw;
       height: 82vh;
